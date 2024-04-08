@@ -5,6 +5,7 @@ import Todo from "./components/Todo";
 import { nanoid } from "nanoid";
 
 
+
 function usePrevious(value) {
   const ref = useRef(null);
   useEffect(() => {
@@ -23,21 +24,50 @@ const FILTER_NAMES = Object.keys(FILTER_MAP);
 
 function App(props) {
 
+  const geoFindMe = () => {
+    if (!navigator.geolocation) {
+      console.log("Geolocation is not supported by your browser");
+    } else {
+      console.log("Locating…");
+      navigator.geolocation.getCurrentPosition(success, error);
+    }
+  };
+  const success = (position) => {
+    const latitude = position.coords.latitude;
+    const longitude = position.coords.longitude;
+    console.log(latitude, longitude);
+    console.log(`Latitude: ${latitude}°, Longitude: ${longitude}°`);
+    console.log(`Try here: https://www.openstreetmap.org/#map=18/${latitude}/${longitude}`);
+    locateTask(lastInsertedId, {
+      latitude: latitude,
+      longitude: longitude,
+      error: "",
+    });
+  };
+  const error = () => {
+    console.log("Unable to retrieve your location");
+  };
+
   function usePersistedState(key, defaultValue) {
     const [state, setState] = useState(() => JSON.parse(localStorage.getItem(key)) || defaultValue);
 
     useEffect(() => {
       localStorage.setItem(key, JSON.stringify(state));
     }, [key, state]);
-    
+
     return [state, setState];
   }
-  
+
+  const [searchValue, setSearchValue] = useState('');
 
   const [tasks, setTasks] = usePersistedState('tasks', []);
 
   // const [tasks, setTasks] = useState(props.tasks);
   const [filter, setFilter] = useState("All");
+  const [lastInsertedId, setLastInsertedId] = useState("");
+
+
+
 
   function toggleTaskCompleted(id) {
     const updatedTasks = tasks.map((task) => {
@@ -70,7 +100,35 @@ function App(props) {
     setTasks(editedTaskList);
   }
 
-  const taskList = tasks
+  function locateTask(id, location) {
+    console.log("locate Task", id, " before");
+    console.log(location, tasks);
+    const locatedTaskList = tasks.map((task) => {
+      // if this task has the same ID as the edited task
+      if (id === task.id) {
+        //
+        return { ...task, location: location };
+      }
+      return task;
+    });
+    console.log(locatedTaskList);
+    setTasks(locatedTaskList);
+  }
+
+  function photoedTask(id) {
+    console.log("photoedTask", id);
+    const photoedTaskList = tasks.map((task) => {
+      if (id === task.id) {
+
+        return { ...task, photo: true };
+      }
+      return task;
+    });
+    console.log(photoedTaskList);
+    setTasks(photoedTaskList);
+  }
+
+  const taskList = tasks?.filter((task) => task?.name?.includes?.(searchValue))
     ?.filter(FILTER_MAP[filter])
     .map((task) => (
       <Todo
@@ -78,7 +136,9 @@ function App(props) {
         name={task.name}
         completed={task.completed}
         key={task.id}
+        location={task.location}
         toggleTaskCompleted={toggleTaskCompleted}
+        photoedTask={photoedTask}
         deleteTask={deleteTask}
         editTask={editTask}
       />
@@ -94,7 +154,14 @@ function App(props) {
   ));
 
   function addTask(name) {
-    const newTask = { id: "todo-" + nanoid(), name: name, completed: false };
+    const id = "todo-" + nanoid();
+    const newTask = {
+      id: id,
+      name: name,
+      completed: false,
+      location: { latitude: "##", longitude: "##", error: "##" },
+    };
+    setLastInsertedId(id);
     setTasks([...tasks, newTask]);
   }
 
@@ -110,14 +177,27 @@ function App(props) {
     }
   }, [tasks.length, prevTaskLength]);
 
+  // 添加登录按钮点击事件处理程序
+  const handleLoginClick = () => {
+    // 导航到登录页面
+    window.location.href = "Login.html";
+  };
+
   return (
     <div className="todoapp stack-large">
       <h1>TodoMatic</h1>
-      <Form addTask={addTask} />
+      <button onClick={handleLoginClick}>Login</button> {/* 登录按钮 */}
+      <Form addTask={addTask} geoFindMe={geoFindMe} />
       <div className="filters btn-group stack-exception">{filterList}</div>
       <h2 id="list-heading" tabIndex="-1" ref={listHeadingRef}>
         {headingText}
       </h2>
+      <div className="search-container">
+        <input type="text" className="search-input"  value={searchValue} onChange={(e) => {
+          setSearchValue(e.target.value);
+          
+        }} placeholder="Search tasks..." />
+      </div>
       <ul
         aria-labelledby="list-heading"
         className="todo-list stack-large stack-exception"
